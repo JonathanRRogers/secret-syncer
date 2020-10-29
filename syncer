@@ -74,16 +74,19 @@ if [ ! -e $DEST ] ; then
 	die "$DEST does not exist"
 fi
 
-cd ${SOURCE}
-files=$(find -xdev -type f)
-
 while true; do
+	cd ${SOURCE}
+	files=$(find -xdev -type f)
+
 	for f in ${files}; do
 		if ! diff -q ${f} ${DEST} 1>/dev/null 2>&1; then
 			echo "installing ${f} at ${DEST} owned by ${TUID}:${TGID} with mode ${TMODE}"
 			install -p -o $TUID -g $TGID -m $TMODE ${f} ${DEST}
 		fi
 	done
+
+	cd /
+
 	if [ $SECONDS -eq 0 ]; then
 		exit 0
 	fi
