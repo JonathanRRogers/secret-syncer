@@ -1,0 +1,91 @@
+#! /bin/sh
+
+set -e
+
+usage() {
+	cat <<EOF
+Usage: $0 [-u uid] [-g gid] [-m mode] [-n seconds] <source> <dest>
+
+-u uid            Target user id (default 0)
+-g gid            Target group id (default 0)
+-m mode           Target mode (default 0600)
+-n seconds        Period to wait in seconds before checking files (default 60)
+                  Set seconds to 0 to exit after syncing once.
+-h                Show this help and exit
+EOF
+}
+
+die() {
+	echo "error: $*" >&2
+	exit 1
+}
+
+if [ $(id -u) -ne 0 ]; then
+	usage
+	die "Must run as root"
+fi
+
+TUID=0
+TGID=0
+TMODE=0600
+SECONDS=60
+
+while getopts u:g:m:n: optname; do
+	case $optname in
+		u)
+			TUID=$OPTARG
+			;;
+		g)
+			TGID=$OPTARG
+			;;
+		h)
+			usage
+			exit 0
+			;;
+		m)
+			TMODE=$OPTARG
+			;;
+		n)
+			SECONDS=$OPTARG
+			;;
+		*)
+			usage
+			exit 1
+			;;
+	esac
+done
+
+# Shift off the options and optional --.
+shift $((OPTIND-1))
+if [ $# -ne 2 ]; then
+	echo "wrong number of arguments" >&2
+	usage >&2
+	exit 1
+fi
+
+SOURCE=$1
+DEST=$2
+
+if [ ! -e $SOURCE ] ; then
+	die "$SOURCE does not exist"
+fi
+
+if [ ! -e $DEST ] ; then
+	die "$DEST does not exist"
+fi
+
+cd ${SOURCE}
+files=$(find -xdev -type f)
+
+while true; do
+	for f in ${files}; do
+		if ! diff -q ${f} ${DEST} 1>/dev/null 2>&1; then
+			echo "installing ${f} at ${DEST} owned by ${TUID}:${TGID} with mode ${TMODE}"
+			install -p -o $TUID -g $TGID -m $TMODE ${f} ${DEST}
+		fi
+	done
+	if [ $SECONDS -eq 0 ]; then
+		exit 0
+	fi
+	sleep $SECONDS
+done
